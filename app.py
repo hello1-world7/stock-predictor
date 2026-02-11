@@ -10,9 +10,20 @@ from sklearn.preprocessing import StandardScaler
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
+from supabase import create_client, Client
 
 # 1. UI CONFIGURATION
 st.set_page_config(page_title="Institutional Stock AI", layout="wide")
+
+# DATABASE CONNECTION
+@st.cache_resource
+def init_supabase():
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
 
 # CSS for single-line scrollable buttons and light/dark mode visibility
 st.markdown("""
@@ -124,6 +135,20 @@ if SYMBOL:
                 
                 ax.legend(facecolor='inherit', framealpha=0.5)
                 st.pyplot(fig)
+
+                # --- DATABASE LOGGING ---
+            log_data = {
+                "ticker": SYMBOL,
+                "predicted_price": float(next_pred), # next_pred is your model's target
+                "actual_price": float(curr_price),   # curr_price is today's close
+                "error_mae": float(abs(next_pred - curr_price)) 
+            }
+
+            try:
+                # This sends the data to your 'predictions' table
+                supabase.table("predictions").insert(log_data).execute()
+            except Exception as e:
+                st.warning(f"Database sync skipped: {e}")
 
             with tab2:
                 st.dataframe(df.tail(20), use_container_width=True)
