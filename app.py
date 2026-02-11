@@ -55,7 +55,7 @@ with c2:
 with c3: 
     if st.button("NVDA"): default_ticker = "NVDA"
 with c4: 
-    if st.button("BTC"): default_ticker = "BTC/USD"
+    if st.button("BTC"): default_ticker = "BTCUSD"
 with c5: 
     if st.button("SPY"): default_ticker = "SPY"
 
