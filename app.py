@@ -14,34 +14,51 @@ from alpaca.data.timeframe import TimeFrame
 # 1. UI CONFIGURATION
 st.set_page_config(page_title="Institutional Stock AI", layout="wide")
 
-# Custom CSS for dark-mode premium feel
+# CSS for single-line scrollable buttons and light/dark mode visibility
 st.markdown("""
     <style>
-    .stMetric { background-color: #1e2130; padding: 15px; border-radius: 10px; border: 1px solid #30363d; }
-    div.stButton > button { width: 100%; border-radius: 5px; height: 3em; background-color: #21262d; color: white; border: 1px solid #30363d; }
-    div.stButton > button:hover { border-color: #58a6ff; color: #58a6ff; }
+    /* Force buttons into a single horizontal scrolling row */
+    .stHorizontalBlock {
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 10px;
+        padding-bottom: 10px;
+    }
+    .stHorizontalBlock > div {
+        flex: 0 0 auto;
+        min-width: 90px;
+    }
+    /* Button Styling for visibility in both modes */
+    div.stButton > button {
+        border-radius: 8px;
+        border: 1px solid #58a6ff;
+        font-weight: bold;
+    }
+    /* Metric card contrast fix */
+    [data-testid="stMetricValue"] { font-size: 1.8rem; font-weight: 700; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("Institutional Stock Predictor")
 
-# 2. QUICK TICKER BUTTONS (Upgrade 1)
-st.subheader("Quick Select")
+# 2. SINGLE-LINE QUICK SELECT (Upgrade)
+st.write("### Quick Select")
 c1, c2, c3, c4, c5 = st.columns(5)
 default_ticker = "SPY"
 
+# Logic for single-line behavior
 with c1: 
-    if st.button(" AAPL"): default_ticker = "AAPL"
+    if st.button("AAPL"): default_ticker = "AAPL"
 with c2: 
-    if st.button(" TSLA"): default_ticker = "TSLA"
+    if st.button("TSLA"): default_ticker = "TSLA"
 with c3: 
-    if st.button(" NVDA"): default_ticker = "NVDA"
+    if st.button("NVDA"): default_ticker = "NVDA"
 with c4: 
-    if st.button(" BTC"): default_ticker = "BTC/USD"
+    if st.button("BTC"): default_ticker = "BTC/USD"
 with c5: 
-    if st.button(" SPY"): default_ticker = "SPY"
+    if st.button("SPY"): default_ticker = "SPY"
 
-# 3. MAIN SEARCH BOX
 SYMBOL = st.text_input("Search Ticker Symbol", value=default_ticker).upper()
 st.divider()
 
@@ -58,14 +75,14 @@ if SYMBOL:
             bars = client.get_stock_bars(request_params)
             df = bars.df.reset_index(level=0, drop=True) if isinstance(bars.df.index, pd.MultiIndex) else bars.df
 
-            # Ridge Logic & Feature Engineering
+            # Ridge Logic
             df['SMA_10'] = df['close'].rolling(window=10).mean()
             df['SMA_30'] = df['close'].rolling(window=30).mean()
             df['Vol_20'] = df['close'].pct_change().rolling(window=20).std()
             delta = df['close'].diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-            df['RSI'] = 100 - (100 / (1 + gain/loss))
+            df['RSI'] = 100 - (100 / (1 + gain/(loss + 1e-9)))
             df['Target'] = df['close'].shift(-1)
             df.dropna(inplace=True)
 
@@ -75,40 +92,43 @@ if SYMBOL:
             scaler = StandardScaler()
             X_train = scaler.fit_transform(X.iloc[:split])
             X_test = scaler.transform(X.iloc[split:])
-            
             model = Ridge(alpha=1.0)
             model.fit(X_train, y.iloc[:split])
             predictions = model.predict(X_test)
             
-            # Prediction for tomorrow
             latest_scaled = scaler.transform(df[features].iloc[-1:].values)
             next_pred = model.predict(latest_scaled)[0]
             curr_price = df['close'].iloc[-1]
 
-            # 4. TABS & METRICS (Upgrades 2, 3, & 4)
-            tab1, tab2 = st.tabs([" AI Forecast", " Market Data"])
+            # 3. TABS & VISIBILITY FIXES
+            tab1, tab2 = st.tabs(["AI Forecast", "Market Data"])
 
             with tab1:
-                # Metric Row (Upgrade 2)
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Current Price", f"${curr_price:.2f}")
-                m2.metric("AI Target (Tomorrow)", f"${next_pred:.2f}", f"{((next_pred/curr_price)-1)*100:.2f}%")
-                m3.metric("Analysis Range", "250 Days")
+                m2.metric("AI Target", f"${next_pred:.2f}", f"{((next_pred/curr_price)-1)*100:.2f}%")
+                m3.metric("Range", "250 Days")
 
-                # Styled Chart (Upgrade 3)
-                plt.style.use('dark_background')
+                # Dynamic chart colors based on theme
                 fig, ax = plt.subplots(figsize=(12, 5))
-                ax.plot(df.index[split:], y.iloc[split:].values, label="Actual Path", color='#58a6ff', linewidth=2)
-                ax.plot(df.index[split:], predictions, label="AI Forecast", color='#ff7b72', linestyle='--')
-                ax.fill_between(df.index[split:], y.iloc[split:].values, predictions, color='#ff7b72', alpha=0.1)
-                ax.set_title(f"{SYMBOL} Forecast vs Reality", fontsize=14, color='white')
-                ax.grid(alpha=0.2)
-                ax.legend()
+                # Set transparent background so it works in light & dark mode
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('none')
+                
+                # Use standard colors that pop on both white and black backgrounds
+                ax.plot(df.index[split:], y.iloc[split:].values, label="Actual Path", color='#1f77b4', linewidth=2.5)
+                ax.plot(df.index[split:], predictions, label="AI Forecast", color='#d62728', linestyle='--', linewidth=2)
+                
+                # Fix label colors for light mode visibility
+                ax.tick_params(colors='gray', labelsize=10)
+                for spine in ax.spines.values():
+                    spine.set_edgecolor('gray')
+                
+                ax.legend(facecolor='inherit', framealpha=0.5)
                 st.pyplot(fig)
 
             with tab2:
-                st.write("### Recent Trading History")
                 st.dataframe(df.tail(20), use_container_width=True)
 
     except Exception as e:
-        st.error(f"Error loading {SYMBOL}. Ensure the ticker is correct.")
+        st.error(f"Error loading {SYMBOL}. Verify ticker symbol.")
