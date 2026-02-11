@@ -55,8 +55,6 @@ with c2:
 with c3: 
     if st.button("NVDA"): default_ticker = "NVDA"
 with c4: 
-    if st.button("BTC"): default_ticker = "BTCUSD"
-with c5: 
     if st.button("SPY"): default_ticker = "SPY"
 
 SYMBOL = st.text_input("Search Ticker Symbol", value=default_ticker).upper()
