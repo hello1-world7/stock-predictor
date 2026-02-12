@@ -19,7 +19,7 @@ st.set_page_config(page_title="Institutional Stock AI", layout="wide")
 @st.cache_resource
 def init_supabase():
     url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    key = st.secrets["SUPABASE_SERVICE_KEY"]
     return create_client(url, key)
 
 supabase = init_supabase()
